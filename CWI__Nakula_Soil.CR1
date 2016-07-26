@@ -10,7 +10,7 @@
 'Sensors must be given a unique address prior to using this program.  The default address for all sensors is 0
 
 Const SCAN_INTERVAL   = 10
-Const OUTPUT_INTERVAL = 15
+Const OUTPUT_INTERVAL = 30
 StationName = CWI_Nakula_Soil
 
 
