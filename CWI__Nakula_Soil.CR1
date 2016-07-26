@@ -1,0 +1,97 @@
+'CR1000 Series Datalogger
+'Reading Decagon Devices, Inc. Generic, 3 output, sensors in SDI-12
+
+'program author: Colin Campbell
+'edited by C. Chambers 1/4/16
+
+'This program handles only sensors numbered 1-9 on port C1.  The CR1000 can handle another 53 sensors
+'per port, but the program must be modified to call sensors 0, a-z and A-Z.
+'Ports C3, C5, and C7 can be configured in a similar manner.
+'Sensors must be given a unique address prior to using this program.  The default address for all sensors is 0
+
+Const SCAN_INTERVAL   = 10
+Const OUTPUT_INTERVAL = 15
+StationName = CWI_Nakula_Soil
+
+
+
+'change this constant to match the number of sensors attached to your com port.  
+'Enter 9 for sensors numbered 1-9.  Sensors must be numbered sequentially from 1 to Sensornum
+Const SensorNum = 4
+
+'CS616 Default Calibration Constants
+const a0= -0.0663
+const a1= -0.0063
+const a2= 0.0007
+
+Dim i
+
+'an array of 2 measurements for each sensor 
+Public MPS6(SensorNum,2)
+Public T4e(2)
+Public SM_us(8)
+Public SM(8)
+
+Alias	MPS6(1,1) = MPS6_1_WaterPotential
+Alias	MPS6(1,2) = MPS6_1_Temperature
+Alias	MPS6(2,1) = MPS6_2_WaterPotential
+Alias	MPS6(2,2) = MPS6_2_Temperature
+Alias	MPS6(3,1)	= MPS6_3_WaterPotential
+Alias	MPS6(3,2)	= MPS6_3_Temperature
+Alias	MPS6(4,1)	= MPS6_4_WaterPotential
+Alias	MPS6(4,2)	= MPS6_4_Temperature
+
+Units MPS6_1_WaterPotential = kPa
+Units MPS6_1_Temperature = degC
+Units MPS6_2_WaterPotential = kPa
+Units MPS6_2_Temperature = degC
+Units MPS6_3_WaterPotential = kPa
+Units MPS6_3_Temperature = degC
+Units MPS6_4_WaterPotential = kPa
+Units MPS6_4_Temperature = degC
+
+Units T4e=kPa
+Units SM_us = usec
+Units SM = m^3/m^3
+
+DataTable(SoilData,1,-1)
+  'change the dataInterval to reflect how often you would like points to be logged.
+  DataInterval (0,OUTPUT_INTERVAL,Min,0)
+  CardOut( 0, -1 )
+  
+	Sample (2,T4e(1),FP2)
+  Sample(SensorNum*2,MPS6(),FP2) 
+ 	Sample (8,SM_us(),FP2)
+	Sample (8,SM(),FP2)
+
+EndTable
+	
+'Main Program
+SequentialMode
+BeginProg
+	Scan (SCAN_INTERVAL,Sec,0,0)
+	  
+		BrFull(T4e(1),1,mV250,1,Vx1,1,2500,False,False,0,_60Hz,-10.6,0.0)
+		BrFull(T4e(2),1,mV250,2,Vx2,1,2500,False,False,0,_60Hz,-10.6,0.0)
+	  'excite the sensors through SW-12 port
+  	PortSet (9,1) 
+    Delay (0,1,Sec)
+    For i = 1 To SensorNum
+      'sequentially excite each sensor numberd 1-Sensornum on C1.  Returns all 3 values for each sensor.
+	    SDI12Recorder (MPS6(i,1),1,i,"M!",1.0,0)
+    Next i
+   'excitation off
+    PortSet (9,0)
+    If IfTime (OUTPUT_INTERVAL-1,OUTPUT_INTERVAL,min) Then 
+'measure 8ea CS616 probes on CR1000
+    	CS616 (SM_us(1),4,5,7,4,1.0,0)   'measure 4ea CS616 probes, enable w/ C7
+    	CS616 (SM_us(5),4,9,8,4,1.0,0)  'measure 4ea CS616 probes, enable w/ C8
+    	For i=1 To 8   'convert CS616 period to Volumetric Water Content
+      	SM(i)=a0 + a1*SM_us(i) + a2*SM_us(i)^2
+      Next i
+  EndIf
+    
+    CallTable(SoilData)
+	NextScan
+	
+EndProg
